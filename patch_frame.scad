@@ -10,9 +10,9 @@ part = "frame"; // [frame,frame_shell,front_inlay]
 
 /* [Patch Text] */
 // Top text embossed above the patch opening (e.g. race date)
-top_text = "13. July 2025";
+top_text = "";
 // Bottom text embossed below the patch opening (e.g. finish time)
-bottom_text = "01:13:20";      
+bottom_text = "";      
 
 /* [Text Style] */
 // Verify the exact font name in OpenSCAD Help -> Font List on the target system.
@@ -29,7 +29,7 @@ text_raise = 1.0;
 // Add a hidden keyhole hanger on the back for wall mounting
 hanger_enabled     = true;
 // Add hidden dovetail slots so frames can link side-to-side
-connectors_enabled = true;
+connectors_enabled = false;
 
 // ============================= HEXAGON — FLAT-TOP REGULAR ===================
 // All dimensions derive from hex_side so the tile stays exactly regular.
@@ -123,7 +123,7 @@ module _sanity() {
   min_face_half_w = face_inner_half_width_at_y(pocket_half_y, front_inlay_clearance);
   min_face_h = face_inner_height(front_inlay_clearance);
   hanger_top_margin = hanger_y_off - hanger_d / 2;
-  hanger_bottom_y = hex_height / 2 - hanger_y_off - hanger_drop;
+  hanger_top_slot_y = hex_height / 2 - hanger_y_off + hanger_drop;
 
   assert(is_valid_part(part),
       str("Unknown part '", part,
@@ -148,8 +148,8 @@ module _sanity() {
       "hanger_front_wall must stay non-negative and below body_thick");
   assert(hanger_top_margin > 0,
       "hanger hole breaches the top flat; increase hanger_y_off or reduce hanger_d");
-  assert(hanger_bottom_y > -hex_height / 2,
-      "hanger slot drops past the bottom flat; reduce hanger_drop or move the hanger upward");
+  assert(hanger_top_slot_y < hex_height / 2,
+      "hanger slot breaches the top flat; reduce hanger_drop or increase hanger_y_off");
   assert(face_thick > patch_depth,
       "face_thick must exceed patch_depth so the pocket stays inside the recessed face layer");
   assert(rim_lift > 0,
@@ -348,7 +348,7 @@ module frame_shell() {
 
         translate([0, keyhole_y, -bool_eps]) {
           cylinder(h = hole_h + bool_eps, d = hanger_d);
-          translate([-hanger_shaft_d / 2, -hanger_drop, 0])
+          translate([-hanger_shaft_d / 2, 0, 0])
             cube([hanger_shaft_d, hanger_drop, hole_h + bool_eps]);
         }
       }
