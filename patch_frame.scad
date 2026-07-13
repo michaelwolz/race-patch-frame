@@ -38,13 +38,19 @@ connectors_enabled = false;
 hex_side     = 80;
 
 // ================== PATCH (Size of HYROX 25/26 patches) =====================
-// The patch is a tall rectangle (bounding box ~60 x 95 mm). We mount it in
-// landscape orientation, so "patch width" is the long horizontal edge.
+/* [Patch Shape] */
+// Opening shape in the recessed front inlay
+patch_shape = "rectangle"; // [rectangle,circle]
+
 /* [Patch Pocket] */
+// The default patch is a tall rectangle (bounding box ~60 x 95 mm). We mount
+// it in landscape orientation, so "patch width" is the long horizontal edge.
 // mm, patch width in the frame's landscape orientation
 patch_w     = 95;
 // mm, patch height in the frame's landscape orientation
 patch_h     = 60;
+// mm, physical diameter of a round patch when patch_shape is "circle"
+patch_diameter = 90;
 // mm, extra fit clearance around the patch on each side
 patch_tol   = 0.6;
 // mm, pocket depth for the patch body
@@ -108,6 +114,10 @@ function is_valid_part(p) =
   p == "frame_shell" ||
   p == "front_inlay";
 
+function is_valid_patch_shape(shape) =
+  shape == "rectangle" ||
+  shape == "circle";
+
 function face_inner_side(clearance = 0) =
   hex_side - 2 * (rim_width + clearance) / sqrt(3);
 function face_inner_height(clearance = 0) =
@@ -119,6 +129,7 @@ function face_inner_half_width_at_y(y, clearance = 0) =
 module _sanity() {
   pocket_w = pocket_width();
   pocket_h = pocket_height();
+  pocket_d = pocket_diameter();
   pocket_half_y = pocket_h / 2;
   min_face_half_w = face_inner_half_width_at_y(pocket_half_y, front_inlay_clearance);
   min_face_h = face_inner_height(front_inlay_clearance);
@@ -128,14 +139,24 @@ module _sanity() {
   assert(is_valid_part(part),
       str("Unknown part '", part,
           "'. Use frame, frame_shell, or front_inlay."));
+  assert(is_valid_patch_shape(patch_shape),
+      str("Unknown patch_shape '", patch_shape,
+          "'. Use rectangle or circle."));
   assert(front_inlay_clearance >= 0,
       "front_inlay_clearance must be non-negative");
   assert(face_inner_side(front_inlay_clearance) > 0,
       "rim_width + front_inlay_clearance leaves no usable front inlay");
-  assert(pocket_h < min_face_h,
-      "patch pocket height exceeds the recessed face insert height");
-  assert(pocket_w / 2 < min_face_half_w,
-      "patch pocket reaches the sloped face edges; reduce patch size/tolerance or increase the usable face area");
+  if (patch_shape == "circle") {
+    assert(patch_diameter > 0,
+        "patch_diameter must stay positive");
+    assert(pocket_d < min_face_h,
+        "circular patch pocket exceeds the recessed face insert; reduce patch diameter/tolerance or increase the usable face area");
+  } else {
+    assert(pocket_h < min_face_h,
+        "patch pocket height exceeds the recessed face insert height");
+    assert(pocket_w / 2 < min_face_half_w,
+        "patch pocket reaches the sloped face edges; reduce patch size/tolerance or increase the usable face area");
+  }
   assert(conn_mouth_w + 2 * conn_tol < conn_lock_w,
       "dovetail mouth width too close to lock width — will not hold");
   assert(conn_depth > rim_width,
@@ -316,10 +337,12 @@ module connector_key(
 
 function pocket_width() = patch_w + 2 * patch_tol;
 function pocket_height() = patch_h + 2 * patch_tol;
+function pocket_diameter() = patch_diameter + 2 * patch_tol;
 function face_inner_top_y(clearance = 0) =
   hex_height / 2 - rim_width - clearance;
 function text_band_y(clearance = 0) =
-  (face_inner_top_y(clearance) + pocket_height() / 2) / 2;
+  (face_inner_top_y(clearance) +
+   (patch_shape == "circle" ? pocket_diameter() : pocket_height()) / 2) / 2;
 
 module frame_shell() {
   // Body shell for split builds and the integrated frame alike.
@@ -371,9 +394,13 @@ module front_inlay(z0 = 0, clearance = 0) {
         linear_extrude(height = face_thick)
           front_inlay_shape(clearance);
 
-        translate([0, 0, face_thick - patch_depth])
-          linear_extrude(height = patch_depth + bool_eps)
-            square([pocket_w, pocket_h], center = true);
+        if (patch_shape == "circle")
+          translate([0, 0, face_thick - patch_depth])
+            cylinder(h = patch_depth + bool_eps, d = pocket_diameter());
+        else
+          translate([0, 0, face_thick - patch_depth])
+            linear_extrude(height = patch_depth + bool_eps)
+              square([pocket_w, pocket_h], center = true);
       }
 
   color(frame_body_color) {
